@@ -29,6 +29,7 @@
   --bg:#12151c; --surface:#1b2029; --ink:#e7e9ee; --muted:#9aa2b2; --line:#2c3341;
   --ai:#8fa9e6; --ai-soft:#232d44; --again:#e2766d; --hard:#d9a352; --good:#6cc28f; --easy:#8fa9e6; color-scheme:dark}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 html{-webkit-text-size-adjust:100%;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
 body{margin:0;-webkit-tap-highlight-color:transparent;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
 .wrap{max-width:640px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
@@ -119,7 +120,7 @@ pre.fmt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-
     <button role="tab" id="tab-import" aria-selected="false">导入</button>
   </nav>
 
-  <div id="installNote" class="note" hidden>在 Safari 里点底部的「分享」按钮 →「添加到主屏幕」，就能像 app 一样从桌面打开。</div>
+  <div id="installNote" class="note" hidden>安装到桌面：点 Safari 地址栏左边的「≡」或「⋯」→「分享」→ 往下滑找到「添加到主屏幕」。</div>
 
   <!-- STUDY -->
   <section id="view-study" style="display:flex;flex-direction:column;gap:12px">
