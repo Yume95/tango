@@ -94,6 +94,15 @@ form.grid{display:grid;gap:10px}
 label{font-size:12px;color:var(--muted);display:grid;gap:4px;letter-spacing:.04em}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 @media (max-width:440px){.two{grid-template-columns:1fr}.card .front{font-size:36px}.stats{gap:12px}}
+.ditem{padding:12px 14px;border-top:1px solid var(--line);display:flex;flex-direction:column;gap:6px}
+.ditem:first-child{border-top:none}
+.ditem .w{font-family:var(--display);font-size:22px;font-weight:700;line-height:1.3}
+.ditem .w small{font-family:var(--body);font-weight:400;font-size:14px;color:var(--muted);margin-left:6px}
+.ditem ol{margin:0;padding-left:1.3em;font-size:14px}
+.ditem .alt{font-size:12px;color:var(--muted)}
+.ditem .acts{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ditem .acts a{font-size:13px;color:var(--ai);text-decoration:none;padding:4px 2px}
+.btn.sm{padding:5px 10px;font-size:13px}
 pre.fmt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;margin:0}
 @media (prefers-reduced-motion:no-preference){.card{transition:transform .15s}.card:active{transform:scale(.99)}}
 </style>
@@ -116,10 +125,12 @@ pre.fmt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-
 
   <nav role="tablist">
     <button role="tab" id="tab-study" aria-selected="true">学习</button>
+    <button role="tab" id="tab-dict" aria-selected="false">查词</button>
     <button role="tab" id="tab-words" aria-selected="false">单词本</button>
     <button role="tab" id="tab-import" aria-selected="false">导入</button>
   </nav>
 
+  <div class="note" id="speakNote" hidden><span></span> <a id="speakLink" href="#" target="_blank" rel="noopener" style="color:var(--ai)">在 Google 翻译里听 ↗</a></div>
   <div id="installNote" class="note" hidden>安装到桌面：点 Safari 地址栏左边的「≡」或「⋯」→「分享」→ 往下滑找到「添加到主屏幕」。</div>
 
   <!-- STUDY -->
@@ -138,6 +149,14 @@ pre.fmt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-
       </div>
     </div>
     <div id="studyArea"></div>
+  </section>
+
+  <!-- DICT -->
+  <section id="view-dict" hidden style="display:flex;flex-direction:column;gap:12px">
+    <input id="dq" type="search" placeholder="输入日语（汉字或假名），也可以输英文" autocomplete="off" autocapitalize="off" spellcheck="false" lang="ja" enterkeyhint="search">
+    <div class="sub" id="dstatus"></div>
+    <div class="list" id="dres"></div>
+    <div class="sub" style="font-size:12px">词典数据来自 JMdict（© EDRDG，CC BY-SA 4.0），释义是英文。想看中文解释，点每个词下面的「有道」。</div>
   </section>
 
   <!-- WORDS -->
@@ -257,32 +276,28 @@ function renderStats() {
 
 let jaVoice = null;
 function pickVoice() {
-  try { jaVoice = speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)) || null; } catch (e) {}
+  try { const vs = speechSynthesis.getVoices(); jaVoice = vs.find(v => v.lang === "ja-JP") || vs.find(v => /^ja/i.test(v.lang)) || null; } catch (e) {}
 }
 try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
-let speechBlocked = false;
-try { speechBlocked = localStorage.getItem("tango.noSpeech2") === "1"; } catch (e) {}
-if (!("speechSynthesis" in window)) speechBlocked = true;
 const gtUrl = t => "https://translate.google.com/?sl=ja&tl=zh-CN&op=translate&text=" + encodeURIComponent(t);
-function speakHint(msg) { const el = $("speakNote"); if (el) { el.hidden = false; el.firstChild.textContent = msg + " 请检查手机是否开了静音模式。 "; } }
-function speakFail(msg) {
-  if (!speechBlocked) { speechBlocked = true; try { localStorage.setItem("tango.noSpeech2", "1"); } catch (e) {} }
-  const el = $("speakNote"); if (el) { el.hidden = false; el.firstChild.textContent = msg + " 以后「读音」会直接打开 Google 翻译。 "; }
-  const b = $("speakBtn"); if (b && current) { const a = document.createElement("a"); a.className = "btn"; a.id = "speakBtn"; a.href = gtUrl(current.jp); a.target = "_blank"; a.rel = "noopener"; a.textContent = "🔊 读音 ↗"; a.style.textDecoration = "none"; b.replaceWith(a); }
+function speakHint(text, msg) {
+  $("speakNote").hidden = false; $("speakNote").firstChild.textContent = msg;
+  $("speakLink").href = gtUrl(text);
 }
 function speak(text) {
-  if (!("speechSynthesis" in window)) return speakFail("这个环境不支持朗读。");
+  $("speakNote").hidden = true;
+  if (!("speechSynthesis" in window)) return speakHint(text, "这个浏览器不支持朗读。");
   try {
-    pickVoice();
-    const u = new SpeechSynthesisUtterance(text); u.lang = "ja-JP"; u.rate = 0.9;
-    if (jaVoice) u.voice = jaVoice;
+    if (!jaVoice) pickVoice();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ja-JP"; u.rate = 0.9; if (jaVoice) u.voice = jaVoice;
     let started = false;
     u.onstart = () => { started = true; };
-    u.onerror = () => speakFail(jaVoice ? "朗读被浏览器拦截了。" : "这台设备上没有日语语音。");
-    speechSynthesis.cancel();
-    setTimeout(() => { speechSynthesis.resume(); speechSynthesis.speak(u); }, 50);
-    setTimeout(() => { if (!started) speakHint(jaVoice ? "朗读没有响应。" : "这台设备上没有日语语音。"); }, 1800);
-  } catch (e) { speakFail("这个环境不支持朗读。"); }
+    u.onerror = ev => { if (ev.error !== "interrupted" && ev.error !== "canceled") speakHint(text, "朗读出错（" + ev.error + "）。"); };
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+    speechSynthesis.speak(u);          // must run inside the tap itself on iPhone
+    setTimeout(() => { if (!started) speakHint(text, "没有声音？iPhone 开着静音模式时网页不会出声，把机身侧面的静音开关拨回来再点一次。"); }, 2500);
+  } catch (e) { speakHint(text, "这个浏览器不支持朗读。"); }
 }
 
 function renderStudy() {
@@ -312,17 +327,14 @@ function renderStudy() {
       ${revealed ? back + (w.example ? `<div class="ex">${esc(w.example)}</div>` : "") : `<div class="hint">点击卡片或按空格键翻面</div>`}
     </div>
     <div class="row between" style="margin-top:12px">
-      ${speechBlocked
-        ? `<a class="btn" id="speakBtn" href="${gtUrl(w.jp)}" target="_blank" rel="noopener" style="text-decoration:none">🔊 读音 ↗</a>`
-        : `<button class="btn" id="speakBtn">🔊 读音</button>`}
+      <button class="btn" id="speakBtn">🔊 读音</button>
       <button class="btn" id="editCur">编辑这个词</button>
     </div>
-    <div class="note" id="speakNote" hidden style="margin-top:8px"><span></span><a href="https://translate.google.com/?sl=ja&tl=zh-CN&op=translate&text=${encodeURIComponent(w.jp)}" target="_blank" rel="noopener" style="color:var(--ai)">在 Google 翻译里听 ↗</a></div>
     ${revealed ? `<div class="grades" style="margin-top:12px">
       ${["忘了","模糊","记得","简单"].map((t, g) => `<button class="g${g}" data-g="${g}">${t}<small>${previewLabel(w, g)}</small></button>`).join("")}
     </div><div class="sub" style="text-align:center;margin-top:6px">快捷键 1 2 3 4</div>` : ""}`;
-  $("card").onclick = () => { if (!revealed) { revealed = true; renderStudy(); if (!jpFirst && !speechBlocked) speak(w.jp); } };
-  if (!speechBlocked) $("speakBtn").onclick = () => speak(w.jp);
+  $("card").onclick = () => { if (!revealed) { revealed = true; renderStudy(); if (!jpFirst) speak(w.jp); } };
+  $("speakBtn").onclick = () => speak(w.jp);
   $("editCur").onclick = () => openEditor(w.id);
   area.querySelectorAll(".grades button").forEach(b => b.onclick = () => grade(+b.dataset.g));
 }
@@ -363,6 +375,7 @@ function renderAll() {
   renderStats();
   if (!$("view-study").hidden) renderStudy();
   if (!$("view-words").hidden) renderWords();
+  if (!$("view-dict").hidden) { loadDict(); renderDict(); }
 }
 
 let flashTimer;
@@ -371,7 +384,7 @@ let syncLabel = "正在连接…";
 function setSyncLabel() { $("sync").textContent = syncLabel; }
 
 // ---------- tabs ----------
-const views = ["study", "words", "import"];
+const views = ["study", "dict", "words", "import"];
 views.forEach(v => $("tab-" + v).onclick = () => {
   views.forEach(x => { $("view-" + x).hidden = x !== v; $("tab-" + x).setAttribute("aria-selected", x === v); });
   try { localStorage.setItem("tango.tab", v); } catch (e) {}
@@ -393,9 +406,9 @@ $("dirJ").onclick = () => changeSettings({ dir: "jp" });
 $("dirZ").onclick = () => changeSettings({ dir: "zh" });
 
 // ---------- editor ----------
-function openEditor(id) {
+function openEditor(id, prefill) {
   editingId = id || null;
-  const w = id ? words.get(id) : {};
+  const w = id ? words.get(id) : (prefill || {});
   $("dlgTitle").textContent = id ? "编辑单词" : "添加单词";
   $("fJp").value = w.jp || ""; $("fKana").value = w.kana || ""; $("fMeaning").value = w.meaning || "";
   $("fEx").value = w.example || ""; $("fTags").value = (w.tags || []).join(" ");
@@ -456,6 +469,83 @@ $("importBtn").onclick = async () => {
   for (const w of list) { try { await store.save(w); ok++; } catch (e) {} }
   flash(`已导入 ${ok} 个单词`);
 };
+
+// ---------- dictionary ----------
+let DICT = null, dictLoading = null, dResults = [], dNote = "";
+const toHira = s => s.replace(/[ァ-ヶ]/g, c => String.fromCharCode(c.charCodeAt(0) - 0x60));
+function loadDict() {
+  if (DICT || dictLoading) return;
+  $("dstatus").textContent = "正在载入词典（第一次约 6MB，之后断网也能用）…";
+  dictLoading = fetch("dict.json").then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    .then(d => {
+      DICT = d.map(e => ({ k: e[0] ? e[0].split(" ") : [], r: e[1].split(" "), h: e[1].split(" ").map(toHira), c: e[2], s: e[3].split(" | ") }));
+      $("dstatus").textContent = ""; runSearch();
+    })
+    .catch(() => { dictLoading = null; $("dstatus").textContent = "词典载入失败，请连上网络后重新打开「查词」。"; });
+}
+function search(q) {
+  const out = [];
+  if (/^[\x00-\x7f]+$/.test(q)) {
+    const re = new RegExp("\\b" + q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i");
+    for (const e of DICT) if (re.test(e.s[0])) { out.push(e); if (out.length >= 60) break; }
+    return out.sort((a, b) => b.c - a.c).slice(0, 30);
+  }
+  const h = toHira(q), exact = [], prefix = [], contains = [];
+  for (const e of DICT) {
+    let m = 0;
+    for (const f of e.k) { if (f === q) { m = 3; break; } if (f.startsWith(q)) m = Math.max(m, 2); else if (q.length > 1 && f.includes(q)) m = Math.max(m, 1); }
+    if (m < 3) for (const f of e.h) { if (f === h) { m = 3; break; } if (f.startsWith(h)) m = Math.max(m, 2); }
+    if (m === 3) exact.push(e); else if (m === 2) prefix.push(e); else if (m === 1 && contains.length < 200) contains.push(e);
+  }
+  const byC = (a, b) => b.c - a.c || (a.k[0] || a.r[0]).length - (b.k[0] || b.r[0]).length;
+  return exact.sort(byC).concat(prefix.sort(byC).slice(0, 25), contains.sort(byC).slice(0, 15));
+}
+function runSearch() {
+  const q = $("dq").value.trim(); dNote = "";
+  if (!q || !DICT) { dResults = []; renderDict(); return; }
+  dResults = search(q);
+  if (!dResults.length && !/^[\x00-\x7f]+$/.test(q)) {           // e.g. 洗い出した -> 洗い出す
+    for (let n = q.length - 1; n >= 1 && !dResults.length; n--) {
+      const sub = q.slice(0, n), sub2 = n > 1 ? q.slice(0, n - 1) : sub;
+      dResults = search(sub).filter(e => e.k.concat(e.r).some(f => f.startsWith(sub)));
+      if (dResults.length) {
+        if (sub2 !== sub) dResults = dResults.concat(search(sub2).filter(e => !dResults.includes(e) && e.k.concat(e.r).some(f => f.startsWith(sub2))));
+        dResults = dResults.slice(0, 15);
+        dNote = `词典里没有「${q}」，下面是相近的词。`;
+      }
+    }
+  }
+  renderDict();
+}
+let dTimer; $("dq").oninput = () => { clearTimeout(dTimer); dTimer = setTimeout(runSearch, 220); };
+$("dq").onkeydown = e => { if (e.key === "Enter") { clearTimeout(dTimer); runSearch(); $("dq").blur(); } };
+function inBook(e) { const forms = new Set(e.k.concat(e.r)); for (const w of words.values()) if (forms.has(w.jp)) return true; return false; }
+function renderDict() {
+  const q = $("dq").value.trim();
+  if (!DICT) { $("dres").hidden = true; return; }
+  $("dres").hidden = !q;
+  if (!q) return;
+  $("dstatus").innerHTML = dNote ? esc(dNote) + ` <a href="https://dict.youdao.com/result?word=${encodeURIComponent(q)}&lang=ja" target="_blank" rel="noopener" style="color:var(--ai)">在有道查「${esc(q)}」↗</a>` : "";
+  $("dres").innerHTML = dResults.length ? dResults.map((e, i) => {
+    const head = e.k[0] || e.r[0];
+    return `<div class="ditem">
+      <div class="w">${esc(head)}${e.k.length ? `<small>${esc(e.r.join("・"))}</small>` : ""} ${e.c ? `<span class="badge">常用</span>` : ""}</div>
+      ${e.k.length > 1 ? `<div class="alt">也写作 ${esc(e.k.slice(1).join("、"))}</div>` : ""}
+      <ol>${e.s.map(x => `<li>${esc(x)}</li>`).join("")}</ol>
+      <div class="acts">
+        ${inBook(e) ? `<span class="badge new">已在单词本</span>` : `<button class="btn primary sm" data-add="${i}">＋ 加入单词本</button>`}
+        <button class="btn sm" data-say="${i}">🔊</button>
+        <a href="https://dict.youdao.com/result?word=${encodeURIComponent(head)}&lang=ja" target="_blank" rel="noopener">有道 ↗</a>
+        <a href="https://www.weblio.jp/content/${encodeURIComponent(head)}" target="_blank" rel="noopener">Weblio ↗</a>
+      </div></div>`;
+  }).join("") : `<div class="empty">没有找到「${esc(q)}」</div>`;
+  $("dres").querySelectorAll("[data-add]").forEach(b => b.onclick = () => {
+    const e = dResults[+b.dataset.add];
+    openEditor(null, { jp: e.k[0] || e.r[0], kana: e.k.length ? e.r[0] : "", meaning: e.s[0], example: "", tags: ["查词"] });
+    $("fMeaning").focus(); $("fMeaning").select();
+  });
+  $("dres").querySelectorAll("[data-say]").forEach(b => b.onclick = () => { const e = dResults[+b.dataset.say]; speak(e.k[0] || e.r[0]); });
+}
 
 // ---------- keyboard ----------
 document.addEventListener("keydown", e => {
