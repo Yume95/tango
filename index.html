@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>単語帳</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="単語帳">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f3f4f6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12151c" media="(prefers-color-scheme: dark)">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@500;700&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: one narrow column — header with today's numbers, tab bar, then a single working surface (card / list / import) */
+:root{
+  --bg:#f3f4f6; --surface:#ffffff; --ink:#1b2130; --muted:#5d6577; --line:#dde1e8;
+  --ai:#24407a; --ai-soft:#e4eaf6; --again:#b4372f; --hard:#a5671a; --good:#2d7a4e; --easy:#24407a;
+  --display:"Shippori Mincho","Hiragino Mincho ProN","Yu Mincho",serif;
+  --body:"Zen Kaku Gothic New","Hiragino Sans","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#12151c; --surface:#1b2029; --ink:#e7e9ee; --muted:#9aa2b2; --line:#2c3341;
+  --ai:#8fa9e6; --ai-soft:#232d44; --again:#e2766d; --hard:#d9a352; --good:#6cc28f; --easy:#8fa9e6; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#12151c; --surface:#1b2029; --ink:#e7e9ee; --muted:#9aa2b2; --line:#2c3341;
+  --ai:#8fa9e6; --ai-soft:#232d44; --again:#e2766d; --hard:#d9a352; --good:#6cc28f; --easy:#8fa9e6; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);background:var(--bg)}
+body{margin:0;-webkit-tap-highlight-color:transparent;background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.6}
+.wrap{max-width:640px;margin:0 auto;padding-block:20px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:16px}
+header{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap}
+h1{font-family:var(--display);font-size:26px;margin:0;letter-spacing:.04em}
+.sub{color:var(--muted);font-size:13px}
+.stats{display:flex;gap:18px;font-variant-numeric:tabular-nums}
+.stat b{display:block;font-size:20px;line-height:1.2}
+.stat span{font-size:11px;color:var(--muted);letter-spacing:.06em}
+.stat.due b{color:var(--ai)}
+nav{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+nav button{all:unset;cursor:pointer;padding:8px 14px;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+nav button[aria-selected="true"]{color:var(--ink);border-color:var(--ai)}
+nav button:focus-visible,.btn:focus-visible{outline:2px solid var(--ai);outline-offset:2px}
+.note{font-size:13px;color:var(--muted);background:var(--ai-soft);padding:8px 12px;border-radius:6px}
+.btn{font:inherit;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:8px 14px;border-radius:8px;cursor:pointer}
+.btn.primary{background:var(--ai);border-color:var(--ai);color:var(--surface)}
+.btn.danger{color:var(--again)}
+.btn:disabled{opacity:.5;cursor:default}
+/* card */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:14px;padding:28px 20px;min-height:280px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;text-align:center;cursor:pointer}
+.card .front{font-family:var(--display);font-size:44px;font-weight:700;line-height:1.25;word-break:break-word}
+.card .front.zh{font-family:var(--body);font-size:26px;font-weight:500}
+.card .kana{font-size:18px;color:var(--muted)}
+.card .meaning{font-size:20px;font-weight:500}
+.card .ex{font-size:14px;color:var(--muted);max-width:44ch;font-family:var(--display)}
+.card .hint{font-size:12px;color:var(--muted);margin-top:8px}
+.card hr{width:40px;border:none;border-top:1px solid var(--line);margin:4px 0}
+.badge{font-size:11px;letter-spacing:.06em;padding:2px 8px;border-radius:999px;background:var(--ai-soft);color:var(--ai)}
+.badge.new{background:transparent;border:1px solid var(--good);color:var(--good)}
+.badge.relearn{background:transparent;border:1px solid var(--again);color:var(--again)}
+.grades{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.grades button{font:inherit;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 4px;cursor:pointer;display:flex;flex-direction:column;align-items:center;color:var(--ink)}
+.grades button small{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums}
+.grades .g0{border-bottom:3px solid var(--again)}.grades .g1{border-bottom:3px solid var(--hard)}
+.grades .g2{border-bottom:3px solid var(--good)}.grades .g3{border-bottom:3px solid var(--easy)}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.row.between{justify-content:space-between}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{all:unset;cursor:pointer;padding:5px 12px;font-size:13px;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--ai-soft);color:var(--ai);font-weight:500}
+.done{text-align:center;padding:40px 16px;background:var(--surface);border:1px solid var(--line);border-radius:14px}
+.done h2{font-family:var(--display);margin:0 0 6px}
+/* list */
+input,textarea,select{font:inherit;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 10px;width:100%}
+input:focus,textarea:focus,select:focus{outline:2px solid var(--ai);outline-offset:0;border-color:transparent}
+.list{display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:12px}
+.item{display:grid;grid-template-columns:1fr auto;gap:4px 12px;padding:10px 14px;border-top:1px solid var(--line);cursor:pointer}
+.item:first-child{border-top:none}
+.item:hover{background:var(--ai-soft)}
+.item .w{font-family:var(--display);font-size:18px;font-weight:700}
+.item .w small{font-family:var(--body);font-weight:400;font-size:13px;color:var(--muted);margin-left:6px}
+.item .m{grid-column:1;font-size:13px;color:var(--muted);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .s{grid-row:1/3;grid-column:2;align-self:center;text-align:right;font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{all:unset;cursor:pointer;font-size:12px;padding:2px 10px;border-radius:999px;border:1px solid var(--line);color:var(--muted)}
+.tag[aria-pressed="true"]{border-color:var(--ai);color:var(--ai);background:var(--ai-soft)}
+.empty{padding:32px 16px;text-align:center;color:var(--muted)}
+dialog{border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);width:min(520px,calc(100vw - 32px));padding:20px}
+dialog::backdrop{background:rgba(10,14,24,.45)}
+form.grid{display:grid;gap:10px}
+label{font-size:12px;color:var(--muted);display:grid;gap:4px;letter-spacing:.04em}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:440px){.two{grid-template-columns:1fr}.card .front{font-size:36px}.stats{gap:12px}}
+pre.fmt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;margin:0}
+@media (prefers-reduced-motion:no-preference){.card{transition:transform .15s}.card:active{transform:scale(.99)}}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <h1>単語帳</h1>
+      <div class="sub" id="sync">正在连接…</div>
+    </div>
+    <div class="stats">
+      <div class="stat due"><b id="sDue">–</b><span>待复习</span></div>
+      <div class="stat"><b id="sNew">–</b><span>今日新词</span></div>
+      <div class="stat"><b id="sAll">–</b><span>总词数</span></div>
+      <div class="stat"><b id="sMature">–</b><span>已掌握</span></div>
+    </div>
+  </header>
+
+  <nav role="tablist">
+    <button role="tab" id="tab-study" aria-selected="true">学习</button>
+    <button role="tab" id="tab-words" aria-selected="false">单词本</button>
+    <button role="tab" id="tab-import" aria-selected="false">导入</button>
+  </nav>
+
+  <div id="installNote" class="note" hidden>在 Safari 里点底部的「分享」按钮 →「添加到主屏幕」，就能像 app 一样从桌面打开。</div>
+
+  <!-- STUDY -->
+  <section id="view-study" style="display:flex;flex-direction:column;gap:12px">
+    <div class="row between">
+      <div class="seg" role="group" aria-label="出题方向">
+        <button id="dirJ" aria-pressed="true">日 → 中</button>
+        <button id="dirZ" aria-pressed="false">中 → 日</button>
+      </div>
+      <div class="row">
+        <label style="display:flex;align-items:center;gap:6px;letter-spacing:0">每日新词
+          <select id="newPerDay" style="width:auto;padding:4px 8px">
+            <option>5</option><option>10</option><option>15</option><option selected>20</option><option>30</option><option>50</option>
+          </select>
+        </label>
+      </div>
+    </div>
+    <div id="studyArea"></div>
+  </section>
+
+  <!-- WORDS -->
+  <section id="view-words" hidden style="display:flex;flex-direction:column;gap:12px">
+    <div class="row">
+      <input id="q" type="search" placeholder="搜索单词、读音或意思" style="flex:1;min-width:180px">
+      <button class="btn primary" id="addBtn">＋ 添加</button>
+    </div>
+    <div class="tags" id="tagBar"></div>
+    <div class="list" id="list"></div>
+  </section>
+
+  <!-- IMPORT -->
+  <section id="view-import" hidden style="display:flex;flex-direction:column;gap:12px">
+    <p style="margin:0">每行一个词，按顺序填 <b>单词、读音、意思、例句、标签</b>，用 Tab、逗号或「｜」分隔。后面几项可以省略。可以直接从 Excel / 表格里复制粘贴。</p>
+    <pre class="fmt">歩留まり	ぶどまり	良品率；成品率	歩留まりを3%改善した。	制造
+段取り替え,だんどりがえ,换线；换模,段取り替え時間を半分にする,制造
+根回し｜ねまわし｜事先疏通；私下沟通</pre>
+    <textarea id="importText" rows="9" placeholder="在这里粘贴…"></textarea>
+    <div class="row between">
+      <span class="sub" id="importInfo">还没有内容</span>
+      <div class="row">
+        <input id="importTag" placeholder="统一加标签（可选）" style="width:170px">
+        <button class="btn primary" id="importBtn" disabled>导入</button>
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--line);width:100%;margin:8px 0">
+    <h3 style="margin:0;font-size:16px">备份</h3>
+    <p class="sub" style="margin:0">单词和学习进度都只存在这台手机上。建议隔一段时间导出一次备份，换手机时用「恢复备份」导回去。</p>
+    <div class="row">
+      <button class="btn" id="exportBtn">导出备份</button>
+      <label class="btn" style="display:inline-block;letter-spacing:0;font-size:15px;color:var(--ink)">恢复备份<input type="file" id="restoreFile" accept=".json,application/json" hidden></label>
+    </div>
+  </section>
+</div>
+
+<dialog id="dlg">
+  <form class="grid" id="wform" method="dialog">
+    <h2 id="dlgTitle" style="margin:0;font-family:var(--display)">添加单词</h2>
+    <div class="two">
+      <label>单词<input id="fJp" required placeholder="例：前倒し"></label>
+      <label>读音<input id="fKana" placeholder="まえだおし"></label>
+    </div>
+    <label>意思<input id="fMeaning" required placeholder="提前"></label>
+    <label>例句<textarea id="fEx" rows="2" placeholder="納期を一週間前倒しする。"></textarea></label>
+    <label>标签（空格分隔）<input id="fTags" placeholder="制造 商务"></label>
+    <div class="sub" id="fInfo"></div>
+    <div class="row between">
+      <button type="button" class="btn danger" id="delBtn">删除</button>
+      <div class="row">
+        <button type="button" class="btn" id="cancelBtn">取消</button>
+        <button type="submit" class="btn primary" id="saveBtn">保存</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+const DAY = 86400000;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const startOfToday = () => { const d = new Date(); d.setHours(0,0,0,0); return d.getTime(); };
+const newId = () => "w" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+
+let words = new Map();      // id -> word
+let settings = { newPerDay: 20, dir: "jp" };
+let store = null;           // {save, remove, saveSettings}
+let current = null, revealed = false, tagFilter = null, editingId = null;
+
+// ---------- SRS (simplified SM-2) ----------
+function schedule(w, g) {          // g: 0 again, 1 hard, 2 good, 3 easy
+  const now = Date.now();
+  const n = { ...w, lastReview: now, firstReview: w.firstReview || now };
+  let ease = w.ease || 2.5, iv = w.interval || 0, reps = w.reps || 0;
+  if (g === 0) { reps = 0; iv = 0; ease = Math.max(1.3, ease - 0.2); n.lapses = (w.lapses || 0) + 1; n.due = now; }
+  else {
+    if (reps === 0) iv = [0, 1, 1, 4][g];
+    else if (reps === 1) iv = [0, 2, 3, 6][g];
+    else iv = Math.max(iv + 1, Math.round(iv * (g === 1 ? 1.2 : g === 2 ? ease : ease * 1.3)));
+    if (g === 1) ease = Math.max(1.3, ease - 0.15);
+    if (g === 3) ease = ease + 0.15;
+    reps += 1; n.due = startOfToday() + iv * DAY;
+  }
+  return Object.assign(n, { ease: +ease.toFixed(2), interval: iv, reps });
+}
+function previewLabel(w, g) {
+  if (g === 0) return "马上再看";
+  const iv = schedule(w, g).interval;
+  return iv < 30 ? iv + " 天" : iv < 365 ? (iv / 30).toFixed(1) + " 月" : (iv / 365).toFixed(1) + " 年";
+}
+
+// ---------- queue ----------
+function queue() {
+  const now = Date.now(), t0 = startOfToday();
+  const all = [...words.values()];
+  const reviews = all.filter(w => w.firstReview && w.due <= now).sort((a, b) => a.due - b.due);
+  const introduced = all.filter(w => w.firstReview && w.firstReview >= t0).length;
+  const room = Math.max(0, settings.newPerDay - introduced);
+  const fresh = all.filter(w => !w.firstReview).sort((a, b) => (a.created || 0) - (b.created || 0));
+  return { reviews, fresh: fresh.slice(0, room), freshTotal: fresh.length, introduced };
+}
+function nextCard() {
+  const q = queue();
+  return q.reviews[0] || q.fresh[0] || null;
+}
+
+// ---------- render ----------
+function renderStats() {
+  const q = queue();
+  const all = [...words.values()];
+  $("sDue").textContent = q.reviews.length;
+  $("sNew").textContent = q.fresh.length;
+  $("sAll").textContent = all.length;
+  $("sMature").textContent = all.filter(w => (w.interval || 0) >= 21).length;
+}
+
+let jaVoice = null;
+function pickVoice() {
+  try { jaVoice = speechSynthesis.getVoices().find(v => /^ja/i.test(v.lang)) || null; } catch (e) {}
+}
+try { pickVoice(); speechSynthesis.onvoiceschanged = pickVoice; } catch (e) {}
+let speechBlocked = false;
+try { speechBlocked = localStorage.getItem("tango.noSpeech2") === "1"; } catch (e) {}
+if (!("speechSynthesis" in window)) speechBlocked = true;
+const gtUrl = t => "https://translate.google.com/?sl=ja&tl=zh-CN&op=translate&text=" + encodeURIComponent(t);
+function speakHint(msg) { const el = $("speakNote"); if (el) { el.hidden = false; el.firstChild.textContent = msg + " 请检查手机是否开了静音模式。 "; } }
+function speakFail(msg) {
+  if (!speechBlocked) { speechBlocked = true; try { localStorage.setItem("tango.noSpeech2", "1"); } catch (e) {} }
+  const el = $("speakNote"); if (el) { el.hidden = false; el.firstChild.textContent = msg + " 以后「读音」会直接打开 Google 翻译。 "; }
+  const b = $("speakBtn"); if (b && current) { const a = document.createElement("a"); a.className = "btn"; a.id = "speakBtn"; a.href = gtUrl(current.jp); a.target = "_blank"; a.rel = "noopener"; a.textContent = "🔊 读音 ↗"; a.style.textDecoration = "none"; b.replaceWith(a); }
+}
+function speak(text) {
+  if (!("speechSynthesis" in window)) return speakFail("这个环境不支持朗读。");
+  try {
+    pickVoice();
+    const u = new SpeechSynthesisUtterance(text); u.lang = "ja-JP"; u.rate = 0.9;
+    if (jaVoice) u.voice = jaVoice;
+    let started = false;
+    u.onstart = () => { started = true; };
+    u.onerror = () => speakFail(jaVoice ? "朗读被浏览器拦截了。" : "这台设备上没有日语语音。");
+    speechSynthesis.cancel();
+    setTimeout(() => { speechSynthesis.resume(); speechSynthesis.speak(u); }, 50);
+    setTimeout(() => { if (!started) speakHint(jaVoice ? "朗读没有响应。" : "这台设备上没有日语语音。"); }, 1800);
+  } catch (e) { speakFail("这个环境不支持朗读。"); }
+}
+
+function renderStudy() {
+  const area = $("studyArea");
+  if (!current || !words.has(current.id)) { current = nextCard(); revealed = false; }
+  else current = words.get(current.id);
+  if (!current) {
+    const q = queue();
+    area.innerHTML = `<div class="done"><h2>${words.size ? "今天的任务完成了" : "单词本还是空的"}</h2>
+      <div class="sub">${words.size
+        ? (q.freshTotal ? `还有 ${q.freshTotal} 个新词没学，可以调高「每日新词」继续。` : "明天再来复习。")
+        : "在「单词本」里添加，或者到「导入」粘贴一批。"}</div></div>`;
+    return;
+  }
+  const w = current, isNew = !w.firstReview, relearn = w.firstReview && !w.reps;
+  const badge = isNew ? `<span class="badge new">新词</span>` : relearn ? `<span class="badge relearn">重学</span>` : `<span class="badge">复习</span>`;
+  const jpFirst = settings.dir === "jp";
+  const front = jpFirst
+    ? `<div class="front">${esc(w.jp)}</div>`
+    : `<div class="front zh">${esc(w.meaning)}</div>`;
+  const back = jpFirst
+    ? `${w.kana ? `<div class="kana">${esc(w.kana)}</div>` : ""}<hr><div class="meaning">${esc(w.meaning)}</div>`
+    : `<hr><div class="front" style="font-size:36px">${esc(w.jp)}</div>${w.kana ? `<div class="kana">${esc(w.kana)}</div>` : ""}`;
+  area.innerHTML = `
+    <div class="card" id="card" tabindex="0" aria-label="点击翻面">
+      ${badge}${front}
+      ${revealed ? back + (w.example ? `<div class="ex">${esc(w.example)}</div>` : "") : `<div class="hint">点击卡片或按空格键翻面</div>`}
+    </div>
+    <div class="row between" style="margin-top:12px">
+      ${speechBlocked
+        ? `<a class="btn" id="speakBtn" href="${gtUrl(w.jp)}" target="_blank" rel="noopener" style="text-decoration:none">🔊 读音 ↗</a>`
+        : `<button class="btn" id="speakBtn">🔊 读音</button>`}
+      <button class="btn" id="editCur">编辑这个词</button>
+    </div>
+    <div class="note" id="speakNote" hidden style="margin-top:8px"><span></span><a href="https://translate.google.com/?sl=ja&tl=zh-CN&op=translate&text=${encodeURIComponent(w.jp)}" target="_blank" rel="noopener" style="color:var(--ai)">在 Google 翻译里听 ↗</a></div>
+    ${revealed ? `<div class="grades" style="margin-top:12px">
+      ${["忘了","模糊","记得","简单"].map((t, g) => `<button class="g${g}" data-g="${g}">${t}<small>${previewLabel(w, g)}</small></button>`).join("")}
+    </div><div class="sub" style="text-align:center;margin-top:6px">快捷键 1 2 3 4</div>` : ""}`;
+  $("card").onclick = () => { if (!revealed) { revealed = true; renderStudy(); if (!jpFirst && !speechBlocked) speak(w.jp); } };
+  if (!speechBlocked) $("speakBtn").onclick = () => speak(w.jp);
+  $("editCur").onclick = () => openEditor(w.id);
+  area.querySelectorAll(".grades button").forEach(b => b.onclick = () => grade(+b.dataset.g));
+}
+
+async function grade(g) {
+  if (!current || !revealed) return;
+  const updated = schedule(current, g);
+  words.set(updated.id, updated);
+  current = null; revealed = false;
+  renderAll();
+  try { await store.save(updated); } catch (e) { flash("保存失败：" + (e.message || e.code)); }
+}
+
+function renderWords() {
+  const q = $("q").value.trim().toLowerCase();
+  const all = [...words.values()].sort((a, b) => (b.created || 0) - (a.created || 0));
+  const tags = [...new Set(all.flatMap(w => w.tags || []))].sort();
+  $("tagBar").innerHTML = tags.length ? [`<button class="tag" data-t="" aria-pressed="${!tagFilter}">全部</button>`]
+    .concat(tags.map(t => `<button class="tag" data-t="${esc(t)}" aria-pressed="${tagFilter === t}">${esc(t)}</button>`)).join("") : "";
+  $("tagBar").querySelectorAll(".tag").forEach(b => b.onclick = () => { tagFilter = b.dataset.t || null; renderWords(); });
+  const shown = all.filter(w => (!tagFilter || (w.tags || []).includes(tagFilter)) &&
+    (!q || [w.jp, w.kana, w.meaning].some(s => (s || "").toLowerCase().includes(q))));
+  const now = Date.now();
+  const status = w => !w.firstReview ? "未学" : w.due <= now ? "待复习" : `${Math.max(1, Math.ceil((w.due - now) / DAY))} 天后`;
+  $("list").innerHTML = shown.length ? shown.map(w => `
+    <div class="item" data-id="${esc(w.id)}" tabindex="0">
+      <div class="w">${esc(w.jp)}${w.kana ? `<small>${esc(w.kana)}</small>` : ""}</div>
+      <div class="s">${status(w)}${w.interval >= 21 ? "<br>已掌握" : ""}</div>
+      <div class="m">${esc(w.meaning)}</div>
+    </div>`).join("") : `<div class="empty">${words.size ? "没有符合条件的词" : "还没有单词。点「＋ 添加」或去「导入」。"}</div>`;
+  $("list").querySelectorAll(".item").forEach(el => {
+    el.onclick = () => openEditor(el.dataset.id);
+    el.onkeydown = e => { if (e.key === "Enter") openEditor(el.dataset.id); };
+  });
+}
+
+function renderAll() {
+  renderStats();
+  if (!$("view-study").hidden) renderStudy();
+  if (!$("view-words").hidden) renderWords();
+}
+
+let flashTimer;
+function flash(msg) { $("sync").textContent = msg; clearTimeout(flashTimer); flashTimer = setTimeout(setSyncLabel, 3000); }
+let syncLabel = "正在连接…";
+function setSyncLabel() { $("sync").textContent = syncLabel; }
+
+// ---------- tabs ----------
+const views = ["study", "words", "import"];
+views.forEach(v => $("tab-" + v).onclick = () => {
+  views.forEach(x => { $("view-" + x).hidden = x !== v; $("tab-" + x).setAttribute("aria-selected", x === v); });
+  try { localStorage.setItem("tango.tab", v); } catch (e) {}
+  renderAll();
+});
+
+// ---------- settings ----------
+function applySettingsUI() {
+  $("newPerDay").value = String(settings.newPerDay);
+  $("dirJ").setAttribute("aria-pressed", settings.dir === "jp");
+  $("dirZ").setAttribute("aria-pressed", settings.dir === "zh");
+}
+async function changeSettings(patch) {
+  settings = { ...settings, ...patch }; applySettingsUI(); revealed = false; renderAll();
+  try { await store.saveSettings(settings); } catch (e) {}
+}
+$("newPerDay").onchange = e => changeSettings({ newPerDay: +e.target.value });
+$("dirJ").onclick = () => changeSettings({ dir: "jp" });
+$("dirZ").onclick = () => changeSettings({ dir: "zh" });
+
+// ---------- editor ----------
+function openEditor(id) {
+  editingId = id || null;
+  const w = id ? words.get(id) : {};
+  $("dlgTitle").textContent = id ? "编辑单词" : "添加单词";
+  $("fJp").value = w.jp || ""; $("fKana").value = w.kana || ""; $("fMeaning").value = w.meaning || "";
+  $("fEx").value = w.example || ""; $("fTags").value = (w.tags || []).join(" ");
+  $("fInfo").textContent = id && w.firstReview ? `复习 ${w.reps || 0} 次 · 忘记 ${w.lapses || 0} 次 · 间隔 ${w.interval || 0} 天` : "";
+  $("delBtn").hidden = !id; $("delBtn").textContent = "删除"; $("delBtn").dataset.armed = "";
+  $("dlg").showModal(); $("fJp").focus();
+}
+$("addBtn").onclick = () => openEditor(null);
+$("cancelBtn").onclick = () => $("dlg").close();
+$("wform").onsubmit = async e => {
+  e.preventDefault();
+  const base = editingId ? words.get(editingId) : { id: newId(), created: Date.now() };
+  const w = { ...base, jp: $("fJp").value.trim(), kana: $("fKana").value.trim(), meaning: $("fMeaning").value.trim(),
+    example: $("fEx").value.trim(), tags: $("fTags").value.split(/[\s,，、]+/).filter(Boolean) };
+  if (!w.jp || !w.meaning) return;
+  words.set(w.id, w); $("dlg").close(); renderAll();
+  try { await store.save(w); flash("已保存"); } catch (err) { flash("保存失败：" + (err.message || err.code)); }
+};
+$("delBtn").onclick = async () => {
+  const b = $("delBtn");
+  if (!b.dataset.armed) { b.dataset.armed = "1"; b.textContent = "再点一次确认删除"; return; }
+  const id = editingId; words.delete(id); $("dlg").close();
+  if (current && current.id === id) current = null;
+  renderAll();
+  try { await store.remove(id); flash("已删除"); } catch (err) { flash("删除失败"); }
+};
+
+// ---------- import ----------
+function parseImport() {
+  const extraTag = $("importTag").value.trim();
+  const existing = new Set([...words.values()].map(w => w.jp));
+  const out = []; let dup = 0;
+  for (const line of $("importText").value.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const sep = line.includes("\t") ? "\t" : line.includes("｜") ? "｜" : line.includes("|") ? "|" : /[,，]/;
+    const [jp, kana, meaning, example, tags] = line.split(sep).map(s => (s || "").trim());
+    if (!jp) continue;
+    if (existing.has(jp)) { dup++; continue; }
+    existing.add(jp);
+    const t = (tags || "").split(/[\s、]+/).filter(Boolean); if (extraTag) t.push(extraTag);
+    out.push({ jp, kana: kana || "", meaning: meaning || "", example: example || "", tags: [...new Set(t)] });
+  }
+  return { out, dup };
+}
+function updateImportInfo() {
+  const { out, dup } = parseImport();
+  $("importInfo").textContent = out.length || dup ? `可导入 ${out.length} 个${dup ? `，跳过重复 ${dup} 个` : ""}` : "还没有内容";
+  $("importBtn").disabled = !out.length;
+}
+$("importText").oninput = updateImportInfo; $("importTag").oninput = updateImportInfo;
+$("importBtn").onclick = async () => {
+  const { out } = parseImport(); const t = Date.now();
+  const list = out.map((w, i) => ({ ...w, id: newId() + i, created: t + i }));
+  list.forEach(w => words.set(w.id, w));
+  $("importText").value = ""; updateImportInfo(); renderAll();
+  $("importBtn").disabled = true;
+  let ok = 0;
+  for (const w of list) { try { await store.save(w); ok++; } catch (e) {} }
+  flash(`已导入 ${ok} 个单词`);
+};
+
+// ---------- keyboard ----------
+document.addEventListener("keydown", e => {
+  if ($("view-study").hidden || $("dlg").open || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+  if ((e.key === " " || e.key === "Enter") && current && !revealed) { e.preventDefault(); $("card").click(); }
+  else if (revealed && "1234".includes(e.key) && e.key) grade(+e.key - 1);
+});
+
+// ---------- storage (this phone only) ----------
+const KEY = "tango.v1";
+const SEED = [{"id": "seed00", "jp": "歩留まり", "kana": "ぶどまり", "meaning": "良品率；成品率", "example": "歩留まりを3%改善した。", "tags": ["示例"], "created": 1794229401422}, {"id": "seed01", "jp": "段取り替え", "kana": "だんどりがえ", "meaning": "换线；换模", "example": "段取り替え時間を半分に短縮する。", "tags": ["示例"], "created": 1794229401423}, {"id": "seed02", "jp": "工数", "kana": "こうすう", "meaning": "工时", "example": "作業工数を見積もる。", "tags": ["示例"], "created": 1794229401424}, {"id": "seed03", "jp": "稼働率", "kana": "かどうりつ", "meaning": "设备稼动率", "example": "設備の稼働率が下がっている。", "tags": ["示例"], "created": 1794229401425}, {"id": "seed04", "jp": "横展開", "kana": "よこてんかい", "meaning": "横向展开（推广到其他产线/部门）", "example": "対策を他ラインへ横展開する。", "tags": ["示例"], "created": 1794229401426}, {"id": "seed05", "jp": "是正処置", "kana": "ぜせいしょち", "meaning": "纠正措置", "example": "不具合の是正処置を取る。", "tags": ["示例"], "created": 1794229401427}, {"id": "seed06", "jp": "治具", "kana": "じぐ", "meaning": "治具；夹具", "example": "専用の治具を設計した。", "tags": ["示例"], "created": 1794229401428}, {"id": "seed07", "jp": "公差", "kana": "こうさ", "meaning": "公差", "example": "公差内に収まっているか確認する。", "tags": ["示例"], "created": 1794229401429}, {"id": "seed08", "jp": "量産立ち上げ", "kana": "りょうさんたちあげ", "meaning": "量产导入；量产爬坡", "example": "新製品の量産立ち上げを担当した。", "tags": ["示例"], "created": 1794229401430}, {"id": "seed09", "jp": "見える化", "kana": "みえるか", "meaning": "可视化", "example": "生産状況を見える化する。", "tags": ["示例"], "created": 1794229401431}, {"id": "seed10", "jp": "根回し", "kana": "ねまわし", "meaning": "事先疏通；私下沟通", "example": "会議の前に関係部署へ根回しする。", "tags": ["示例"], "created": 1794229401432}, {"id": "seed11", "jp": "擦り合わせ", "kana": "すりあわせ", "meaning": "协调；对齐意见", "example": "仕様について設計部門と擦り合わせる。", "tags": ["示例"], "created": 1794229401433}, {"id": "seed12", "jp": "前倒し", "kana": "まえだおし", "meaning": "提前（日程）", "example": "納期を一週間前倒しする。", "tags": ["示例"], "created": 1794229401434}, {"id": "seed13", "jp": "洗い出す", "kana": "あらいだす", "meaning": "全面找出；梳理", "example": "課題を洗い出す。", "tags": ["示例"], "created": 1794229401435}, {"id": "seed14", "jp": "懸念", "kana": "けねん", "meaning": "担忧；顾虑", "example": "品質面の懸念点を共有する。", "tags": ["示例"], "created": 1794229401436}, {"id": "seed15", "jp": "稟議", "kana": "りんぎ", "meaning": "内部审批（书面）", "example": "設備投資の稟議を通す。", "tags": ["示例"], "created": 1794229401437}];
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify({ words: [...words.values()], settings })); }
+  catch (e) { flash("保存失败：手机存储空间可能不足"); }
+}
+store = { save: async () => persist(), remove: async () => persist(), saveSettings: async () => persist() };
+
+$("exportBtn").onclick = async () => {
+  const d = new Date(), stamp = d.getFullYear() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+  const name = "tango-backup-" + stamp + ".json";
+  const blob = new Blob([JSON.stringify({ app: "tango", version: 1, exported: d.toISOString(), words: [...words.values()], settings }, null, 1)], { type: "application/json" });
+  try {
+    const file = new File([blob], name, { type: "application/json" });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: name }); return; }
+  } catch (e) { if (e && e.name === "AbortError") return; }
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+};
+$("restoreFile").onchange = async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const data = JSON.parse(await f.text());
+    if (!Array.isArray(data.words)) throw 0;
+    data.words.forEach(w => { if (w && w.id && w.jp) words.set(w.id, w); });
+    if (data.settings) settings = { ...settings, ...data.settings };
+    persist(); applySettingsUI(); renderAll(); flash(`已恢复 ${data.words.length} 个单词`);
+  } catch (err) { flash("这个文件不是单词本的备份"); }
+  e.target.value = "";
+};
+
+function init() {
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
+  if (saved) {
+    (saved.words || []).forEach(w => words.set(w.id, w));
+    if (saved.settings) settings = { ...settings, ...saved.settings };
+  } else {
+    const t = Date.now(); SEED.forEach((w, i) => words.set(w.id, { ...w, created: t + i })); persist();
+  }
+  try { const t = localStorage.getItem("tango.tab"); if (t && views.includes(t)) $("tab-" + t).click(); } catch (e) {}
+  const standalone = navigator.standalone || matchMedia("(display-mode: standalone)").matches;
+  $("installNote").hidden = standalone;
+  syncLabel = "进度保存在这台手机上"; setSyncLabel();
+  applySettingsUI(); renderAll();
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+init();
+})();
+</script>
+</body>
+</html>
