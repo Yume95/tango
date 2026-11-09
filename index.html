@@ -55,6 +55,10 @@ nav button:focus-visible,.btn:focus-visible{outline:2px solid var(--ai);outline-
 .card .front.zh{font-family:var(--body);font-size:26px;font-weight:500}
 .card .kana{font-size:18px;color:var(--muted)}
 .card .meaning{font-size:20px;font-weight:500}
+.card details{width:100%;max-width:46ch;text-align:left;font-size:14px;margin-top:4px}
+.card summary{cursor:pointer;color:var(--ai);font-size:13px;text-align:center;list-style:none}
+.card summary::-webkit-details-marker{display:none}
+.card .notebody{white-space:pre-wrap;margin-top:8px;padding:10px 12px;background:var(--bg);border-radius:8px;line-height:1.7}
 .card .ex{font-size:14px;color:var(--muted);max-width:44ch;font-family:var(--display)}
 .card .hint{font-size:12px;color:var(--muted);margin-top:8px}
 .card hr{width:40px;border:none;border-top:1px solid var(--line);margin:4px 0}
@@ -202,6 +206,7 @@ pre.fmt{font-size:12px;background:var(--bg);border:1px solid var(--line);border-
     </div>
     <label>意思<input id="fMeaning" required placeholder="提前"></label>
     <label>例句<textarea id="fEx" rows="2" placeholder="納期を一週間前倒しする。"></textarea></label>
+    <label>讲解 / 笔记<textarea id="fNote" rows="3" placeholder="语感、用法、近义词…"></textarea></label>
     <label>标签（空格分隔）<input id="fTags" placeholder="制造 商务"></label>
     <div class="sub" id="fInfo"></div>
     <div class="row between">
@@ -324,7 +329,7 @@ function renderStudy() {
   area.innerHTML = `
     <div class="card" id="card" tabindex="0" aria-label="点击翻面">
       ${badge}${front}
-      ${revealed ? back + (w.example ? `<div class="ex">${esc(w.example)}</div>` : "") : `<div class="hint">点击卡片或按空格键翻面</div>`}
+      ${revealed ? back + (w.example ? `<div class="ex">${esc(w.example)}</div>` : "") + (w.note ? `<details onclick="event.stopPropagation()"><summary>看讲解 ▾</summary><div class="notebody">${esc(w.note)}</div></details>` : "") : `<div class="hint">点击卡片或按空格键翻面</div>`}
     </div>
     <div class="row between" style="margin-top:12px">
       <button class="btn" id="speakBtn">🔊 读音</button>
@@ -411,7 +416,7 @@ function openEditor(id, prefill) {
   const w = id ? words.get(id) : (prefill || {});
   $("dlgTitle").textContent = id ? "编辑单词" : "添加单词";
   $("fJp").value = w.jp || ""; $("fKana").value = w.kana || ""; $("fMeaning").value = w.meaning || "";
-  $("fEx").value = w.example || ""; $("fTags").value = (w.tags || []).join(" ");
+  $("fEx").value = w.example || ""; $("fNote").value = w.note || ""; $("fTags").value = (w.tags || []).join(" ");
   $("fInfo").textContent = id && w.firstReview ? `复习 ${w.reps || 0} 次 · 忘记 ${w.lapses || 0} 次 · 间隔 ${w.interval || 0} 天` : "";
   $("delBtn").hidden = !id; $("delBtn").textContent = "删除"; $("delBtn").dataset.armed = "";
   $("dlg").showModal(); $("fJp").focus();
@@ -422,7 +427,7 @@ $("wform").onsubmit = async e => {
   e.preventDefault();
   const base = editingId ? words.get(editingId) : { id: newId(), created: Date.now() };
   const w = { ...base, jp: $("fJp").value.trim(), kana: $("fKana").value.trim(), meaning: $("fMeaning").value.trim(),
-    example: $("fEx").value.trim(), tags: $("fTags").value.split(/[\s,，、]+/).filter(Boolean) };
+    example: $("fEx").value.trim(), note: $("fNote").value.trim(), tags: $("fTags").value.split(/[\s,，、]+/).filter(Boolean) };
   if (!w.jp || !w.meaning) return;
   words.set(w.id, w); $("dlg").close(); renderAll();
   try { await store.save(w); flash("已保存"); } catch (err) { flash("保存失败：" + (err.message || err.code)); }
@@ -586,6 +591,28 @@ $("restoreFile").onchange = async e => {
   e.target.value = "";
 };
 
+// ---------- inbox: words Claude adds from chat (inbox.json in the repo) ----------
+async function pullInbox() {
+  let seen = [];
+  try { seen = JSON.parse(localStorage.getItem("tango.inboxSeen") || "[]"); } catch (e) {}
+  let data;
+  try { const r = await fetch("inbox.json?t=" + Date.now(), { cache: "no-store" }); if (!r.ok) return; data = await r.json(); } catch (e) { return; }
+  const seenSet = new Set(seen); let added = 0, t = Date.now();
+  const byJp = new Map([...words.values()].map(w => [w.jp, w]));
+  for (const it of (data.words || [])) {
+    if (!it || !it.id || !it.jp || seenSet.has(it.id)) continue;
+    seenSet.add(it.id);
+    const have = byJp.get(it.jp);
+    if (have) { if (!have.note && it.note) { have.note = it.note; words.set(have.id, have); } continue; }
+    const w = { id: "in-" + it.id, jp: it.jp, kana: it.kana || "", meaning: it.meaning || "", example: it.example || "", note: it.note || "", tags: it.tags || ["聊天"], created: t + added };
+    words.set(w.id, w); byJp.set(w.jp, w); added++;
+  }
+  try { localStorage.setItem("tango.inboxSeen", JSON.stringify([...seenSet])); } catch (e) {}
+  persist(); renderAll();
+  if (added) flash(`从聊天里新加了 ${added} 个词`);
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") pullInbox(); });
+
 function init() {
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
@@ -600,6 +627,7 @@ function init() {
   $("installNote").hidden = standalone;
   syncLabel = "进度保存在这台手机上"; setSyncLabel();
   applySettingsUI(); renderAll();
+  pullInbox();
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
 init();
